@@ -151,13 +151,6 @@
   (let [[_ flags pattern] (re-find #"^(?:\(\?([idmsux]*)\))?(.*)" (str x))]
     (emits \/ (.replaceAll (re-matcher #"/" pattern) "\\\\/") \/ flags)))
 
-(defmethod emit-constant clojure.lang.Keyword [x]
-           (emits \" "\\uFDD0" \:
-                  (if (namespace x)
-                    (str (namespace x) "/") "")
-                  (name x)
-                  \"))
-
 (def ^:const goog-hash-max 0x100000000)
 
 (defn goog-string-hash [s]
@@ -184,6 +177,24 @@
                      (unchecked-int (goog-string-hash name))))
     (emits ",")
     (emit-constant nil)
+    (emits ")")))
+
+(defmethod emit-constant clojure.lang.Keyword [x]
+  (let [ns     (namespace x)
+        name   (name x)
+        keystr (if-not (nil? ns)
+                 (str ns "/" name)
+                 name)]
+    (emits "new cljs.core.Keyword(")
+    (emit-constant ns)
+    (emits ",")
+    (emit-constant name)
+    (emits ",")
+    (emit-constant keystr)
+    (emits ",")
+    (emit-constant (clojure.lang.Util/hashCombine
+                     (unchecked-int (goog-string-hash ns))
+                     (unchecked-int (goog-string-hash name))))
     (emits ")")))
 
 (defmacro emit-wrap [env & body]

@@ -361,6 +361,52 @@
     (-flush writer)
     (str sb)))
 
+;;;;;;;;;;;;;;;;;;; keywords ;;;;;;;;;;;;;;;
+
+(defn ^boolean keyword? [x]
+  (instance? Keyword x))
+
+(deftype Keyword [ns name str ^:mutable _hash]
+  Object
+  (toString [_] str)
+
+  IEquiv
+  (-equiv [_ other]
+          (and (instance? Keyword other)
+               (identical? str (.-str other))))
+  IFn
+  (-invoke [this coll]
+           (-lookup coll this nil))
+  (-invoke [this coll not-found]
+           (-lookup coll this not-found))
+
+  IHash
+  (-hash [_]
+         (if (== _hash -1) (set! _hash (hash-combine (hash ns) (hash name))))
+         _hash)
+
+  INamed
+  (-name [_] name)
+  (-namespace [_] ns)
+
+  IPrintWithWriter
+  (-pr-writer [_ writer _] (-write writer str)))
+
+(defn keyword
+  "Returns a Keyword with the given namespace and name. Do not use :
+  in the keyword strings, it will be added automatically."
+  ([name]
+   (cond (keyword? name) name
+         (symbol? name) (keyword nil
+                                 (cljs.core/namespace name)
+                                 (cljs.core/name name))
+         :else (keyword nil nil name)))
+  ([ns name]
+   (let [keyword-str (str ":" (if (nil? ns)
+                                name
+                                (str ns "/" name)))]
+     (Keyword. ns name keyword-str -1))))
+
 ;;;;;;;;;;;;;;;;;;; symbols ;;;;;;;;;;;;;;;
 
 (declare list hash-combine hash Symbol)
@@ -1174,10 +1220,6 @@ reduces them without incurring seq initialization"
 (defn ^boolean boolean [x]
   (if x true false))
 
-(defn ^boolean keyword? [x]
-  (and ^boolean (goog/isString x)
-       (identical? (.charAt x 0) \uFDD0)))
-
 (defn ^boolean ifn? [f]
   (or (fn? f) (satisfies? IFn f)))
 
@@ -1776,13 +1818,6 @@ reduces them without incurring seq initialization"
                 args)]
     (apply gstring/format fmt args)))
 
-(defn keyword
-  "Returns a Keyword with the given namespace and name.  Do not use :
-  in the keyword strings, it will be added automatically."
-  ([name] (cond (keyword? name) name
-                (symbol? name) (str* "\uFDD0" ":" (cljs.core/name name))
-                :else (str* "\uFDD0" ":" name)))
-  ([ns name] (keyword (str* ns "/" name))))
 
 (defn- equiv-sequential
   "Assumes x is sequential. Returns true if x equals y, otherwise
